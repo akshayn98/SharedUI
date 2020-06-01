@@ -99,6 +99,7 @@ class fsobj(object):
 
 
 	def save(self, objname = 'fsobj'):  #NOTE:  objname param is new
+		
 		filedir, filename = self.get_filedir_filename(self.ID)
 		file = os.sep.join([filedir, filename])
 		if not os.path.exists(filedir):
@@ -766,6 +767,81 @@ class sensor(fsobj):
 	DEFAULTS = {
 		"shipments":[],
 	}
+	def save(self):
+		root = Element('ROOT')
+                tree = ElementTree(root)
+                root.set('xmlns:xsi','http://www.w3.org/2001/XMLSchema-instance')
+                parts = Element('PARTS')
+                root.append(parts)
+                part = Element('PART')
+                part.set('mode','auto')
+                parts.append(part)
+                kindOfPart = Element('KIND_OF_PART')
+                size_str = 'Six' if self.size==6 else 'Eight'   #May need to convert from string
+		kindOfPart.text = 'HGC {} Inch Sensor'.format(size_str)
+                part.append(kindOfPart)
+                user = Element('RECORD_INSERTION_USER')
+                part.append(user)
+                user.text = self.insertion_user
+                serialNumber = Element('SERIAL_NUMBER')
+                serialNumber.text = self.identifier
+                part.append(serialNumber)
+                #Multiple comments are allowed per part, so iterate through self.comments list and create a COMMENT_DESCRIPTION for each:
+		for cmt in self.comments:
+			comment = Element('COMMENT_DESCRIPTION')
+			comment.text = cmt
+			part.append(comment)
+                part.append(comment)
+                location = Element('LOCATION')
+                part.append(location)
+                location.text = self.location
+                #man = Element('MANUFACTURER')
+                #part.append(man)
+                #man.text = self.sensor_info[3]
+                #predef = Element('PREDEFINED_ATTRIBUTES')
+                #part.append(predef)
+                #attr = Element('ATTRIBUTE')
+                #predef.append(attr)
+                #name = Element('NAME')
+                #attr.append(name)
+                #name.text = 'HGC Silicon Sensor Type'
+                #value = Element('VALUE')
+                #attr.append(value)
+                #value.text = self.sensor_info[2]
+		
+		contents = vars(self)
+		if hasattr(self, 'PROPERTIES_DO_NOT_SAVE'):  # If a property is in the "DO_NOT_SAVE" list defined above, don't save it in the XML file (this chunk of code removes those vars from consideration)
+			contents = {_:contents[_] for _ in contents.keys() if _ not in self.PROPERTIES_DO_NOT_SAVE}
+		else:
+			contents = vars(self)
+		#NEW:  Need to ensure that properties added to the XML manually above aren't added *again* as separate elements in this section
+		contents = {_:contents[_] for _ in contents.keys() if _ not in self.PROPERTIES_SAVED_MANUALLY}
+		for varname, value in contents.items():  #Iterate through dictionary containing all of the class' variables, minus the vars in PROPERTIES_DO_NOT_SAVE and PROPERTIES_SAVED_MANUALLY
+			# varname = string containing name of variable, value = actual contents of variable
+			print("Saving", varname)  #Output for testing only
+			print("Value =", value)
+			# WARNING:  Dates are currently being treated as a [day, month, year] list, in that order...will need to reformat this for other objects (baseplate doesn't have any).
+			if isinstance(value, list):  # If variable is list, generate a new XML element for every item in the list
+				# No structure for now, just make each item a separate <thingy>thing1</thingy>, etc.
+				for item in value:
+					vr = Element(varname)
+					vr.text = str(item)
+					part.append(vr)
+			else:  # If not a list, create a single XML element for it:
+				vr = Element(varname)
+				vr.text = str(value)
+				part.append(vr)
+
+		# Save .json file using the old save() function:
+		super(baseplate, self).save()
+
+		# Save .xml file:
+		# Store in same directory as .json files, w/ same name:
+		filedir, filename = self.get_filedir_filename(self.ID)
+		#filename = self.FILENAME.format(ID=self.ID)  #Copied from get_filedir_filename()
+		print("Saving file to ", filedir+'/'+filename.replace('.json', '.xml'))
+		tree.write(open(filedir+'/'+filename.replace('.json', '.xml'), 'wb'))
+                print('Created sensor XML file')
 
 
 class pcb(fsobj):
